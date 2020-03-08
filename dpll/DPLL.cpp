@@ -4,6 +4,7 @@
 
 #include "DPLL.h"
 
+//#define DEBUG
 #ifdef DEBUG
 #define DBG(...) printf(__VA_ARGS__)
 #else
@@ -79,7 +80,7 @@ bool DPLL::dpll() {
   for (int i = 0; i < clauses.size(); i++) {
     if (!clauses[i].is_satisfied) {
       is_sat = false;
-    } else if (clauses[i].num_unassigned == 0) {
+    } else if (clauses[i].num_unassigned == 0 && !clauses[i].is_satisfied) {
       // unsatisfied && no unassigned
       is_unsat = true;
     }
@@ -141,7 +142,7 @@ bool DPLL::dpll() {
   for (int i = 0; i < clauses.size(); i++) {
     if (!clauses[i].is_satisfied) {
       is_sat = false;
-    } else if (clauses[i].num_unassigned == 0) {
+    } else if (clauses[i].num_unassigned == 0 && !clauses[i].is_satisfied) {
       // unsatisfied && no unassigned
       is_unsat = true;
     }
