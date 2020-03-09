@@ -28,7 +28,8 @@ struct ClauseInfo {
 
 struct Change {
   uint32_t assigned_literal;
-  std::vector<uint32_t> removed_clauses;
+  //std::vector<uint32_t> removed_clauses;
+  uint32_t removed_clauses_begin;
 };
 
 class DPLL {
@@ -67,6 +68,7 @@ private:
   model model;
   std::vector<LiteralInfo> literals;
   std::vector<ClauseInfo> clauses;
+  std::vector<uint32_t> removed_clauses;
 
   bool dpll();
   void setLiteral(uint32_t index, std::stack<Change> &stack);

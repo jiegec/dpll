@@ -186,6 +186,7 @@ void DPLL::setLiteral(uint32_t index, std::stack<Change> &stack) {
 
   struct Change change;
   change.assigned_literal = index;
+  change.removed_clauses_begin = removed_clauses.size();
 
   // remove current literal
   for (int clause_index : literals[index].clauses) {
@@ -195,7 +196,7 @@ void DPLL::setLiteral(uint32_t index, std::stack<Change> &stack) {
       for (int literal_index : clauses[clause_index].literals) {
         literals[literal_index].cur_clauses -= 1;
       }
-      change.removed_clauses.push_back(clause_index);
+      removed_clauses.push_back(clause_index);
     }
   }
   // remove negative literal
@@ -223,10 +224,12 @@ void DPLL::unsetLiteral(std::stack<Change> &stack) {
     clauses[clause_index].num_unassigned += 1;
   }
   // re-add removed clauses
-  for (int clause_index : change.removed_clauses) {
+  for (int i = change.removed_clauses_begin; i < removed_clauses.size();i++) {
+    uint32_t clause_index = removed_clauses[i];
     clauses[clause_index].is_satisfied = false;
     for (int literal_index : clauses[clause_index].literals) {
       literals[literal_index].cur_clauses += 1;
     }
   }
+  removed_clauses.resize(change.removed_clauses_begin);
 }
