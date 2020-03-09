@@ -10,7 +10,7 @@ from functools import partial
 
 unsat_indices = []
 num_vars = []
-total = 20
+total = 30
 
 def get_ans():   
     for i in range(total):
@@ -78,7 +78,7 @@ def test(i):
     clauses = parseDimacs(i)
     
     if inter is True:
-        print(i, 'unsat', end=' ')
+        print(i, 'unsat for', num_vars[i], 'vars', end=' ')
     else:
         print(i, 'sat for', len(inter), 'vars', end=' ')
 
