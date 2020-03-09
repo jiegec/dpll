@@ -70,9 +70,9 @@ bool DPLL::check_sat() {
   if (res) {
     // fill unused variables
     for (int i = 1; i <= phi.num_variable; i++) {
-      if (model.find(i) == model.end()) {
+      if (m.find(i) == m.end()) {
         // not found
-        model[i] = true;
+        m[i] = true;
       }
     }
   }
@@ -164,7 +164,7 @@ backtrack:
 
 model DPLL::get_model() {
   // TODO: your code here, or in the header file
-  return model;
+  return m;
 }
 
 // return true when conflict is found
@@ -173,7 +173,7 @@ bool DPLL::setLiteral(uint32_t index, std::stack<Change> &stack) {
   int neg_index = index ^ 1;
   literals[index].is_assigned = true;
   literals[neg_index].is_assigned = true;
-  model[(index >> 1) + 1] = !(index & 1);
+  m[(index >> 1) + 1] = !(index & 1);
 
   struct Change change;
   change.assigned_literal = index;

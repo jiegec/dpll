@@ -65,7 +65,7 @@ public:
 
 private:
   formula phi;
-  model model;
+  model m;
   std::vector<LiteralInfo> literals;
   std::vector<ClauseInfo> clauses;
   std::vector<uint32_t> removed_clauses;
