@@ -104,17 +104,7 @@ bool DPLL::dpll() {
         for (int index : clause.literals) {
           if (!literals[index].is_assigned) {
             // found unit literal
-            struct Change change;
-            change.assigned_literal = index;
-            change.removed_clause = i;
-            stack.push(change);
-
-            clause.is_satisfied = true;
-            // remove current clause
-            for (int literal_index : clause.literals) {
-              literals[literal_index].cur_clauses -= 1;
-            }
-            setLiteral(index);
+            setLiteral(index, stack);
             break;
           }
         }
@@ -128,11 +118,7 @@ bool DPLL::dpll() {
       // no clauses include this literal
       // set it's negative literal
       int neg = i ^ 1;
-      struct Change change;
-      change.assigned_literal = neg;
-      change.removed_clause = 0xFFFFFFFF;
-      stack.push(change);
-      setLiteral(neg);
+      setLiteral(neg, stack);
     }
   }
 
@@ -159,20 +145,20 @@ bool DPLL::dpll() {
   for (int i = 0; i < literals.size(); i++) {
     if (!literals[i].is_assigned) {
       // try to assign it
-      setLiteral(i);
+      setLiteral(i, stack);
       if (dpll()) {
         // satisfied
         return true;
       }
-      unsetLiteral(i);
+      unsetLiteral(stack);
       // try to assign it's negative literal
       int neg = i ^ 1;
-      setLiteral(neg);
+      setLiteral(neg, stack);
       if (dpll()) {
         // satisfied
         return true;
       }
-      unsetLiteral(neg);
+      unsetLiteral(stack);
 
       break;
     }
@@ -181,21 +167,7 @@ bool DPLL::dpll() {
 backtrack:
   // backtrack
   while (!stack.empty()) {
-    struct Change change = stack.top();
-    stack.pop();
-    if (change.removed_clause == 0xFFFFFFFF) {
-      // pure literal assign
-      unsetLiteral(change.assigned_literal);
-    } else {
-      // unit propagate
-      unsetLiteral(change.assigned_literal);
-      ClauseInfo &clause = clauses[change.removed_clause];
-      clause.is_satisfied = false;
-      // re-add current clause
-      for (int literal_index : clause.literals) {
-        literals[literal_index].cur_clauses += 1;
-      }
-    }
+    unsetLiteral(stack);
   }
   return false;
 }
@@ -205,25 +177,38 @@ model DPLL::get_model() {
   return model;
 }
 
-void DPLL::setLiteral(uint32_t index) {
+void DPLL::setLiteral(uint32_t index, std::stack<Change> &stack) {
   DBG("set %d to true\n", index);
   int neg_index = index ^ 1;
   literals[index].is_assigned = true;
   literals[neg_index].is_assigned = true;
   model[(index >> 1) + 1] = !(index & 1);
 
+  struct Change change;
+  change.assigned_literal = index;
+
   // remove current literal
   for (int clause_index : literals[index].clauses) {
     clauses[clause_index].num_unassigned -= 1;
-    clauses[clause_index].is_satisfied = true;
+    if (!clauses[clause_index].is_satisfied) {
+      clauses[clause_index].is_satisfied = true;
+      for (int literal_index : clauses[clause_index].literals) {
+        literals[literal_index].cur_clauses -= 1;
+      }
+      change.removed_clauses.push_back(clause_index);
+    }
   }
   // remove negative literal
   for (int clause_index : literals[neg_index].clauses) {
     clauses[clause_index].num_unassigned -= 1;
   }
+  stack.push(change);
 }
 
-void DPLL::unsetLiteral(uint32_t index) {
+void DPLL::unsetLiteral(std::stack<Change> &stack) {
+  Change change = stack.top();
+  stack.pop();
+  int index = change.assigned_literal;
   DBG("unset %d\n", index);
   int neg_index = index ^ 1;
   literals[index].is_assigned = false;
@@ -232,10 +217,16 @@ void DPLL::unsetLiteral(uint32_t index) {
   // re-add current literal
   for (int clause_index : literals[index].clauses) {
     clauses[clause_index].num_unassigned += 1;
-    clauses[clause_index].is_satisfied = false;
   }
   // re-add negative literal
   for (int clause_index : literals[neg_index].clauses) {
     clauses[clause_index].num_unassigned += 1;
+  }
+  // re-add removed clauses
+  for (int clause_index : change.removed_clauses) {
+    clauses[clause_index].is_satisfied = false;
+    for (int literal_index : clauses[clause_index].literals) {
+      literals[literal_index].cur_clauses += 1;
+    }
   }
 }
