@@ -86,7 +86,7 @@ def test(i):
         print('pass, time:', dplltime, 'ms')
         return True
     else:
-        print('fail')
+        print('fail, time:', dplltime, 'ms')
         return False
 
 
