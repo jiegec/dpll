@@ -8,9 +8,22 @@ import re
 from functools import partial
 
 
-unsat_indices = [0, 4, 7, 10, 12, 14, 15, 16, 18]
-num_vars = [1, 5, 4, 5, 20, 12, 20, 21, 70, 57, 90, 42, 35, 45, 80, 50, 275, 163, 157, 2]
+unsat_indices = []
+num_vars = []
+total = 20
 
+def get_ans():   
+    for i in range(total):
+        with os.popen('cryptominisat5 tests/test{}.dimacs'.format(i)) as f:
+            for line in f.readlines():
+                if line.startswith('s UNSATISFIABLE'):
+                    unsat_indices.append(i)
+                    break
+        with open('tests/test{}.dimacs'.format(i)) as f:
+            for line in f.readlines():
+                if line.startswith('p'):
+                    num_vars.append(int(line.split(' ')[2]))
+                    break
 
 def execute(i):   
     with os.popen('build/dpll tests/test{}.dimacs'.format(i)) as f:
@@ -70,15 +83,15 @@ def test(i):
         print(i, 'sat for', len(inter), 'vars', end=' ')
 
     if check(clauses, inter, i, dplltime):
-        print('pass')
+        print('pass, time:', dplltime, 'ms')
         return True
     else:
         print('fail')
         return False
 
 
-total = 20
 score = 0
+get_ans()
 for i in range(total):
     if test(i) is True:
         score += 1
