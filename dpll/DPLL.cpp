@@ -12,7 +12,6 @@
 #endif
 
 bool DPLL::check_sat() {
-
   // sort literals
   for (int i = 0; i < phi.clauses.size(); i++) {
     // index conversion
@@ -58,6 +57,15 @@ bool DPLL::check_sat() {
     clauses.push_back(clause);
   }
 
+  num_sat = 0;
+  num_unsat = 0;
+  for (int i = 0; i < clauses.size(); i++) {
+    if (clauses[i].num_unassigned == 0 && !clauses[i].is_satisfied) {
+      // unsatisfied && no unassigned
+      return false;
+    }
+  }
+
   bool res = dpll();
   if (res) {
     // fill unused variables
@@ -75,21 +83,9 @@ bool DPLL::dpll() {
   std::stack<Change> stack;
 
   // check if all clauses are satisfied
-  bool is_sat = true;
-  bool is_unsat = false;
-  for (int i = 0; i < clauses.size(); i++) {
-    if (!clauses[i].is_satisfied) {
-      is_sat = false;
-    } else if (clauses[i].num_unassigned == 0 && !clauses[i].is_satisfied) {
-      // unsatisfied && no unassigned
-      is_unsat = true;
-    }
-    if (is_sat == false && is_unsat == true)
-      break;
-  }
-  if (is_sat)
+  if (num_sat == clauses.size())
     return true;
-  if (is_unsat)
+  if (num_unsat)
     return false;
 
   // find unit clause
@@ -104,7 +100,10 @@ bool DPLL::dpll() {
         for (int index : clause.literals) {
           if (!literals[index].is_assigned) {
             // found unit literal
-            setLiteral(index, stack);
+            if (setLiteral(index, stack)) {
+              // conflict
+              goto backtrack;
+            }
             break;
           }
         }
@@ -118,26 +117,17 @@ bool DPLL::dpll() {
       // no clauses include this literal
       // set it's negative literal
       int neg = i ^ 1;
-      setLiteral(neg, stack);
+      if (setLiteral(neg, stack)) {
+        // conflict
+        goto backtrack;
+      }
     }
   }
 
   // check sat/unsat again
-  is_sat = true;
-  is_unsat = false;
-  for (int i = 0; i < clauses.size(); i++) {
-    if (!clauses[i].is_satisfied) {
-      is_sat = false;
-    } else if (clauses[i].num_unassigned == 0 && !clauses[i].is_satisfied) {
-      // unsatisfied && no unassigned
-      is_unsat = true;
-    }
-    if (is_sat == false && is_unsat == true)
-      break;
-  }
-  if (is_sat)
+  if (num_sat == clauses.size())
     return true;
-  if (is_unsat) {
+  if (num_unsat) {
     goto backtrack;
   }
 
@@ -177,7 +167,8 @@ model DPLL::get_model() {
   return model;
 }
 
-void DPLL::setLiteral(uint32_t index, std::stack<Change> &stack) {
+// return true when conflict is found
+bool DPLL::setLiteral(uint32_t index, std::stack<Change> &stack) {
   DBG("set %d to true\n", index);
   int neg_index = index ^ 1;
   literals[index].is_assigned = true;
@@ -192,6 +183,7 @@ void DPLL::setLiteral(uint32_t index, std::stack<Change> &stack) {
   for (int clause_index : literals[index].clauses) {
     clauses[clause_index].num_unassigned -= 1;
     if (!clauses[clause_index].is_satisfied) {
+      num_sat += 1;
       clauses[clause_index].is_satisfied = true;
       for (int literal_index : clauses[clause_index].literals) {
         literals[literal_index].cur_clauses -= 1;
@@ -200,10 +192,17 @@ void DPLL::setLiteral(uint32_t index, std::stack<Change> &stack) {
     }
   }
   // remove negative literal
+  bool conflict = false;
   for (int clause_index : literals[neg_index].clauses) {
     clauses[clause_index].num_unassigned -= 1;
+    if (clauses[clause_index].num_unassigned == 0 &&
+        !clauses[clause_index].is_satisfied) {
+      num_unsat += 1;
+      conflict = true;
+    }
   }
   stack.push(change);
+  return conflict;
 }
 
 void DPLL::unsetLiteral(std::stack<Change> &stack) {
@@ -221,12 +220,17 @@ void DPLL::unsetLiteral(std::stack<Change> &stack) {
   }
   // re-add negative literal
   for (int clause_index : literals[neg_index].clauses) {
+    if (clauses[clause_index].num_unassigned == 0 &&
+        !clauses[clause_index].is_satisfied) {
+      num_unsat -= 1;
+    }
     clauses[clause_index].num_unassigned += 1;
   }
   // re-add removed clauses
-  for (int i = change.removed_clauses_begin; i < removed_clauses.size();i++) {
+  for (int i = change.removed_clauses_begin; i < removed_clauses.size(); i++) {
     uint32_t clause_index = removed_clauses[i];
     clauses[clause_index].is_satisfied = false;
+    num_sat -= 1;
     for (int literal_index : clauses[clause_index].literals) {
       literals[literal_index].cur_clauses += 1;
     }

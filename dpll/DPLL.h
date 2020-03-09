@@ -69,9 +69,11 @@ private:
   std::vector<LiteralInfo> literals;
   std::vector<ClauseInfo> clauses;
   std::vector<uint32_t> removed_clauses;
+  uint32_t num_sat;
+  uint32_t num_unsat;
 
   bool dpll();
-  void setLiteral(uint32_t index, std::stack<Change> &stack);
+  bool setLiteral(uint32_t index, std::stack<Change> &stack);
   void unsetLiteral(std::stack<Change> &stack);
 };
 
