@@ -124,7 +124,7 @@ bool DPLL::dpll() {
         }
       }
     } while (has_unit);
-next:
+  next:
 
     if (num_sat == clauses.size())
       return true;
@@ -150,7 +150,7 @@ next:
     if (!backtrack) {
       // decide a new variable
       backtrack = true;
-      for (uint32_t i = 0; i < literals.size(); i++) {
+      for (uint32_t i = 0; i < literals.size(); i += 2) {
         if (!literals[i].is_assigned) {
           if (setLiteral(i, TYPE_DECIDE)) {
             backtrack = true;
@@ -168,11 +168,11 @@ next:
         unsetLiteral();
       }
       if (!stack.empty() && stack.top().type == TYPE_DECIDE) {
-        // decide a new variable from last off
         Change change = stack.top();
         unsetLiteral();
-        for (uint32_t i = change.assigned_literal + 1; i < literals.size();
-             i++) {
+        if ((change.assigned_literal & 1) == 0) {
+          // decide the opposite variable from last off
+          uint32_t i = change.assigned_literal ^ 1;
           if (!literals[i].is_assigned) {
             if (setLiteral(i, TYPE_DECIDE)) {
               unsetLiteral();
