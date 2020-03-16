@@ -12,6 +12,8 @@
 #define DBG(...)
 #endif
 
+const uint32_t INVALID_CLAUSE = 0xFFFFFFFF;
+
 bool DPLL::check_sat() {
   // sort literals
   for (uint32_t i = 0; i < phi.clauses.size(); i++) {
@@ -67,6 +69,9 @@ bool DPLL::check_sat() {
     }
   }
 
+#ifdef CDCL
+  backtrack_level = 0;
+#endif
   bool res = dpll(0);
   if (res) {
     // fill unused variables
@@ -82,6 +87,7 @@ bool DPLL::check_sat() {
 
 bool DPLL::dpll(uint32_t depth) {
   std::stack<Change> stack;
+  bool conflict = false;
 
   // check if all clauses are satisfied
   if (num_sat == clauses.size())
@@ -106,6 +112,7 @@ bool DPLL::dpll(uint32_t depth) {
 #endif
             if (setLiteral(index, stack)) {
               // conflict
+              conflict = true;
               goto backtrack;
             }
             break;
@@ -121,8 +128,12 @@ bool DPLL::dpll(uint32_t depth) {
       // no clauses include this literal
       // set it's negative literal
       uint32_t neg = i ^ 1;
+#ifdef CDCL
+      literals[neg].unit_clause = INVALID_CLAUSE;
+#endif
       if (setLiteral(neg, stack)) {
         // conflict
+        conflict = true;
         goto backtrack;
       }
     }
@@ -132,6 +143,7 @@ bool DPLL::dpll(uint32_t depth) {
   if (num_sat == clauses.size())
     return true;
   if (num_unsat) {
+    conflict = true;
     goto backtrack;
   }
 
@@ -139,20 +151,41 @@ bool DPLL::dpll(uint32_t depth) {
   for (uint32_t i = 0; i < literals.size(); i++) {
     if (!literals[i].is_assigned) {
       // try to assign it
+#ifdef CDCL
+      literals[i].assign_depth = depth;
+      literals[i].unit_clause = INVALID_CLAUSE;
+      backtrack_level = depth;
+#endif
       setLiteral(i, stack);
-      if (dpll(depth+1)) {
+      if (dpll(depth + 1)) {
         // satisfied
         return true;
       }
       unsetLiteral(stack);
+#ifdef CDCL
+      literals[i].assign_depth = 0;
+      literals[i].unit_clause = INVALID_CLAUSE;
+      if (backtrack_level + 1 < depth) {
+        // backjump
+        break;
+      }
+#endif
       // try to assign it's negative literal
       uint32_t neg = i ^ 1;
+#ifdef CDCL
+      literals[neg].assign_depth = depth;
+      literals[neg].unit_clause = INVALID_CLAUSE;
+#endif
       setLiteral(neg, stack);
-      if (dpll(depth+1)) {
+      if (dpll(depth + 1)) {
         // satisfied
         return true;
       }
       unsetLiteral(stack);
+#ifdef CDCL
+      literals[neg].assign_depth = 0;
+      literals[neg].unit_clause = INVALID_CLAUSE;
+#endif
 
       break;
     }
@@ -160,9 +193,30 @@ bool DPLL::dpll(uint32_t depth) {
 
 backtrack:
   // backtrack
+  uint32_t max_depth = 0;
   while (!stack.empty()) {
+    // find backjump depth
+#ifdef CDCL
+    uint32_t literal = stack.top().assigned_literal;
+    uint32_t clause = literals[literal].unit_clause;
+    if (clause != INVALID_CLAUSE) {
+      for (uint32_t literal_index : clauses[clause].literals) {
+        if (literals[literal_index].assign_depth > max_depth) {
+          max_depth = literals[literal_index].assign_depth;
+        }
+      }
+    }
+
+    literals[literal].assign_depth = 0;
+    literals[literal].unit_clause = INVALID_CLAUSE;
+#endif
     unsetLiteral(stack);
   }
+#ifdef CDCL
+  if (backtrack_level > max_depth && max_depth != 0) {
+    backtrack_level = max_depth;
+  }
+#endif
   return false;
 }
 
@@ -231,7 +285,8 @@ void DPLL::unsetLiteral(std::stack<Change> &stack) {
     clauses[clause_index].num_unassigned += 1;
   }
   // re-add removed clauses
-  for (uint32_t i = change.removed_clauses_begin; i < removed_clauses.size(); i++) {
+  for (uint32_t i = change.removed_clauses_begin; i < removed_clauses.size();
+       i++) {
     uint32_t clause_index = removed_clauses[i];
     clauses[clause_index].is_satisfied = false;
     num_sat -= 1;
