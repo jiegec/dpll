@@ -5,7 +5,7 @@
 #include "DPLL.h"
 #include <algorithm>
 
-//#define DEBUG
+// #define DEBUG
 #ifdef DEBUG
 #define DBG(...) printf(__VA_ARGS__)
 #else
@@ -109,6 +109,7 @@ bool DPLL::dpll(uint32_t depth) {
             // found unit literal
 #ifdef CDCL
             literals[index].unit_clause = i;
+            literals[index].assign_depth = depth;
 #endif
             if (setLiteral(index, stack)) {
               // conflict
@@ -227,7 +228,7 @@ model DPLL::get_model() {
 
 // return true when conflict is found
 bool DPLL::setLiteral(uint32_t index, std::stack<Change> &stack) {
-  DBG("set %d to true\n", index);
+  DBG("set%s%d to true\n", index % 2 == 0 ? " " : " -", index / 2 + 1);
   int neg_index = index ^ 1;
   literals[index].is_assigned = true;
   literals[neg_index].is_assigned = true;
