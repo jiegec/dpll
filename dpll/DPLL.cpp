@@ -61,7 +61,6 @@ bool DPLL::check_sat() {
   }
 
   num_sat = 0;
-  num_unsat = 0;
   for (uint32_t i = 0; i < clauses.size(); i++) {
     if (clauses[i].num_unassigned == 0 && !clauses[i].is_satisfied) {
       // unsatisfied && no unassigned
@@ -72,7 +71,7 @@ bool DPLL::check_sat() {
 #ifdef CDCL
   backtrack_level = 0;
 #endif
-  bool res = dpll(0);
+  bool res = dpll();
   if (res) {
     // fill unused variables
     for (uint32_t i = 1; i <= phi.num_variable; i++) {
@@ -85,143 +84,110 @@ bool DPLL::check_sat() {
   return res;
 }
 
-bool DPLL::dpll(uint32_t depth) {
-  std::stack<Change> stack;
-  bool conflict = false;
-  DBG("depth: %d\n", depth);
+bool DPLL::dpll() {
+  DBG("depth: %d\n", stack.size());
 
   // check if all clauses are satisfied
   if (num_sat == clauses.size())
     return true;
-  if (num_unsat)
-    return false;
 
-  // find unit clause
-  bool has_unit = false;
+  // decision loop
+  // should have a stack with:
+  // 1. empty
+  // 2. top element of type TYPE_DECIDE
   do {
-    has_unit = false;
-    for (uint32_t i = 0; i < clauses.size(); i++) {
-      ClauseInfo &clause = clauses[i];
-      if (!clause.is_satisfied && clause.num_unassigned == 1) {
-        // unit clause
-        has_unit = true;
-        for (uint32_t index : clause.literals) {
-          if (!literals[index].is_assigned) {
-            // found unit literal
-#ifdef CDCL
-            literals[index].unit_clause = i;
-            literals[index].assign_depth = depth;
-#endif
-            if (setLiteral(index, stack)) {
-              // conflict
-              conflict = true;
-              goto backtrack;
+    if (num_sat == clauses.size())
+      return true;
+
+    // find unit clause
+    bool has_unit = false;
+    bool backtrack = false;
+    do {
+      has_unit = false;
+      for (uint32_t i = 0; i < clauses.size(); i++) {
+        ClauseInfo &clause = clauses[i];
+        if (!clause.is_satisfied && clause.num_unassigned == 1) {
+          // unit clause
+          has_unit = true;
+          for (uint32_t index : clause.literals) {
+            if (!literals[index].is_assigned) {
+              // found unit literal
+              if (setLiteral(index, TYPE_IMPLIED)) {
+                // conflict
+                backtrack = true;
+                has_unit = false;
+                goto next;
+              }
+              break;
             }
-            break;
+          }
+        }
+      }
+    } while (has_unit);
+next:
+
+    if (num_sat == clauses.size())
+      return true;
+
+    // find pure literals
+    for (uint32_t i = 0; i < literals.size(); i++) {
+      LiteralInfo &literal = literals[i];
+      if (!literal.is_assigned && literal.cur_clauses == 0) {
+        uint32_t neg = i ^ 1;
+        // found pure literal
+        if (setLiteral(neg, TYPE_IMPLIED)) {
+          // conflict
+          unsetLiteral();
+          backtrack = true;
+          break;
+        }
+      }
+    }
+
+    if (num_sat == clauses.size())
+      return true;
+
+    if (!backtrack) {
+      // decide a new variable
+      backtrack = true;
+      for (uint32_t i = 0; i < literals.size(); i++) {
+        if (!literals[i].is_assigned) {
+          if (setLiteral(i, TYPE_DECIDE)) {
+            backtrack = true;
+          } else {
+            backtrack = false;
+          }
+          break;
+        }
+      }
+    }
+
+    while (backtrack && !stack.empty()) {
+      // backtrack to last TYPE_DECIDE
+      while (!stack.empty() && stack.top().type == TYPE_IMPLIED) {
+        unsetLiteral();
+      }
+      if (!stack.empty() && stack.top().type == TYPE_DECIDE) {
+        // decide a new variable from last off
+        Change change = stack.top();
+        unsetLiteral();
+        for (uint32_t i = change.assigned_literal + 1; i < literals.size();
+             i++) {
+          if (!literals[i].is_assigned) {
+            if (setLiteral(i, TYPE_DECIDE)) {
+              unsetLiteral();
+              break;
+            } else {
+              backtrack = false;
+              break;
+            }
           }
         }
       }
     }
-  } while (has_unit);
 
-  // find pure literal
-  for (uint32_t i = 0; i < literals.size(); i++) {
-    if (!literals[i].is_assigned && literals[i].cur_clauses == 0) {
-      // no clauses include this literal
-      // set it's negative literal
-      uint32_t neg = i ^ 1;
-#ifdef CDCL
-      literals[neg].unit_clause = INVALID_CLAUSE;
-      literals[neg].assign_depth = depth;
-#endif
-      if (setLiteral(neg, stack)) {
-        // conflict
-        conflict = true;
-        goto backtrack;
-      }
-    }
-  }
+  } while (!stack.empty());
 
-  // check sat/unsat again
-  if (num_sat == clauses.size())
-    return true;
-  if (num_unsat) {
-    conflict = true;
-    goto backtrack;
-  }
-
-  // choose one unassigned literal
-  for (uint32_t i = 0; i < literals.size(); i++) {
-    if (!literals[i].is_assigned) {
-      // try to assign it
-#ifdef CDCL
-      literals[i].assign_depth = depth;
-      literals[i].unit_clause = INVALID_CLAUSE;
-      backtrack_level = depth;
-#endif
-      setLiteral(i, stack);
-      if (dpll(depth + 1)) {
-        // satisfied
-        return true;
-      }
-      unsetLiteral(stack);
-#ifdef CDCL
-      literals[i].assign_depth = 0;
-      literals[i].unit_clause = INVALID_CLAUSE;
-      if (backtrack_level < depth) {
-        // backjump
-        break;
-      }
-#endif
-      // try to assign it's negative literal
-      uint32_t neg = i ^ 1;
-#ifdef CDCL
-      literals[neg].assign_depth = depth;
-      literals[neg].unit_clause = INVALID_CLAUSE;
-#endif
-      setLiteral(neg, stack);
-      if (dpll(depth + 1)) {
-        // satisfied
-        return true;
-      }
-      unsetLiteral(stack);
-#ifdef CDCL
-      literals[neg].assign_depth = 0;
-      literals[neg].unit_clause = INVALID_CLAUSE;
-#endif
-
-      break;
-    }
-  }
-
-backtrack:
-  // backtrack
-  uint32_t max_depth = 0;
-  while (!stack.empty()) {
-    // find backjump depth
-#ifdef CDCL
-    uint32_t literal = stack.top().assigned_literal;
-    uint32_t clause = literals[literal].unit_clause;
-    if (clause != INVALID_CLAUSE) {
-      for (uint32_t literal_index : clauses[clause].literals) {
-        uint32_t neg = literal_index ^ 1;
-        if (literals[neg].assign_depth > max_depth &&
-            literals[neg].assign_depth < depth) {
-          max_depth = literals[neg].assign_depth;
-        }
-      }
-    }
-
-    literals[literal].assign_depth = 0;
-    literals[literal].unit_clause = INVALID_CLAUSE;
-#endif
-    unsetLiteral(stack);
-  }
-#ifdef CDCL
-  if (backtrack_level > max_depth && max_depth != 0) {
-    backtrack_level = max_depth;
-  }
-#endif
   return false;
 }
 
@@ -231,14 +197,16 @@ model DPLL::get_model() {
 }
 
 // return true when conflict is found
-bool DPLL::setLiteral(uint32_t index, std::stack<Change> &stack) {
-  DBG("set%s%d to true\n", index % 2 == 0 ? " " : " -", index / 2 + 1);
+bool DPLL::setLiteral(uint32_t index, ChangeType type) {
+  DBG("set%s%d to true: %s\n", index % 2 == 0 ? " " : " -", index / 2 + 1,
+      type == TYPE_DECIDE ? "decide" : "implied");
   int neg_index = index ^ 1;
   literals[index].is_assigned = true;
   literals[neg_index].is_assigned = true;
   m[(index >> 1) + 1] = !(index & 1);
 
   struct Change change;
+  change.type = type;
   change.assigned_literal = index;
   change.removed_clauses_begin = removed_clauses.size();
 
@@ -260,7 +228,6 @@ bool DPLL::setLiteral(uint32_t index, std::stack<Change> &stack) {
     clauses[clause_index].num_unassigned -= 1;
     if (clauses[clause_index].num_unassigned == 0 &&
         !clauses[clause_index].is_satisfied) {
-      num_unsat += 1;
       conflict = true;
     }
   }
@@ -268,7 +235,7 @@ bool DPLL::setLiteral(uint32_t index, std::stack<Change> &stack) {
   return conflict;
 }
 
-void DPLL::unsetLiteral(std::stack<Change> &stack) {
+void DPLL::unsetLiteral() {
   Change change = stack.top();
   stack.pop();
   int index = change.assigned_literal;
@@ -283,10 +250,6 @@ void DPLL::unsetLiteral(std::stack<Change> &stack) {
   }
   // re-add negative literal
   for (uint32_t clause_index : literals[neg_index].clauses) {
-    if (clauses[clause_index].num_unassigned == 0 &&
-        !clauses[clause_index].is_satisfied) {
-      num_unsat -= 1;
-    }
     clauses[clause_index].num_unassigned += 1;
   }
   // re-add removed clauses

@@ -10,7 +10,7 @@
 #include <stdint.h>
 
 // Conflict driven clause learning
-#define CDCL
+// #define CDCL
 
 struct LiteralInfo {
   // immutable
@@ -33,10 +33,12 @@ struct ClauseInfo {
   bool is_satisfied;
 };
 
+enum ChangeType { TYPE_DECIDE, TYPE_IMPLIED };
+
 struct Change {
   uint32_t assigned_literal;
-  //std::vector<uint32_t> removed_clauses;
   uint32_t removed_clauses_begin;
+  ChangeType type;
 };
 
 class DPLL {
@@ -73,18 +75,18 @@ public:
 private:
   formula phi;
   model m;
+  std::stack<Change> stack;
   std::vector<LiteralInfo> literals;
   std::vector<ClauseInfo> clauses;
   std::vector<uint32_t> removed_clauses;
   uint32_t num_sat;
-  uint32_t num_unsat;
 #ifdef CDCL
   uint32_t backtrack_level;
 #endif
 
-  bool dpll(uint32_t depth);
-  bool setLiteral(uint32_t index, std::stack<Change> &stack);
-  void unsetLiteral(std::stack<Change> &stack);
+  bool dpll();
+  bool setLiteral(uint32_t index, ChangeType type);
+  void unsetLiteral();
 };
 
 #endif // DPLL_DPLL_H
