@@ -88,6 +88,7 @@ bool DPLL::check_sat() {
 bool DPLL::dpll(uint32_t depth) {
   std::stack<Change> stack;
   bool conflict = false;
+  DBG("depth: %d\n", depth);
 
   // check if all clauses are satisfied
   if (num_sat == clauses.size())
@@ -131,6 +132,7 @@ bool DPLL::dpll(uint32_t depth) {
       uint32_t neg = i ^ 1;
 #ifdef CDCL
       literals[neg].unit_clause = INVALID_CLAUSE;
+      literals[neg].assign_depth = depth;
 #endif
       if (setLiteral(neg, stack)) {
         // conflict
@@ -166,7 +168,7 @@ bool DPLL::dpll(uint32_t depth) {
 #ifdef CDCL
       literals[i].assign_depth = 0;
       literals[i].unit_clause = INVALID_CLAUSE;
-      if (backtrack_level + 1 < depth) {
+      if (backtrack_level < depth) {
         // backjump
         break;
       }
@@ -202,8 +204,10 @@ backtrack:
     uint32_t clause = literals[literal].unit_clause;
     if (clause != INVALID_CLAUSE) {
       for (uint32_t literal_index : clauses[clause].literals) {
-        if (literals[literal_index].assign_depth > max_depth) {
-          max_depth = literals[literal_index].assign_depth;
+        uint32_t neg = literal_index ^ 1;
+        if (literals[neg].assign_depth > max_depth &&
+            literals[neg].assign_depth < depth) {
+          max_depth = literals[neg].assign_depth;
         }
       }
     }
@@ -268,7 +272,7 @@ void DPLL::unsetLiteral(std::stack<Change> &stack) {
   Change change = stack.top();
   stack.pop();
   int index = change.assigned_literal;
-  DBG("unset %d\n", index);
+  DBG("unset%s%d\n", index % 2 == 0 ? " " : " -", index / 2 + 1);
   int neg_index = index ^ 1;
   literals[index].is_assigned = false;
   literals[neg_index].is_assigned = false;
