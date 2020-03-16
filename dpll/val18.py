@@ -10,7 +10,7 @@ from functools import partial
 
 unsat_indices = []
 num_vars = []
-total = 41
+total = 42
 
 def get_ans():   
     for i in range(total):

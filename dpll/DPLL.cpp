@@ -4,6 +4,7 @@
 
 #include "DPLL.h"
 #include <algorithm>
+#include <set>
 
 // #define DEBUG
 #ifdef DEBUG
@@ -140,11 +141,13 @@ bool DPLL::dpll() {
         if (!literal.is_assigned && literal.cur_clauses == 0) {
           uint32_t neg = i ^ 1;
           // found pure literal
+          /*
           if (setLiteral(neg, TYPE_IMPLIED)) {
             // conflict
             backtrack = true;
             break;
           }
+          */
         }
       }
     }
@@ -167,16 +170,82 @@ bool DPLL::dpll() {
       }
     }
 
+#ifdef CDCL
+    if (backtrack) {
+      Change change = stack.back();
+      if (change.type == TYPE_IMPLIED) {
+        // generate cut from stack top
+        uint32_t literal = change.assigned_literal;
+        std::set<uint32_t> conflict_literals;
+
+        for (uint32_t literal_index :
+             clauses[literals[literal].unit_clause].literals) {
+          conflict_literals.insert(literal_index ^ 1);
+        }
+
+        // negation
+        literal ^= 1;
+        for (uint32_t clause_index : literals[literal].clauses) {
+          if (!clauses[clause_index].is_satisfied &&
+              clauses[clause_index].num_unassigned == 0) {
+            // unit clause for negation literal
+            for (uint32_t literal_index : clauses[clause_index].literals) {
+              conflict_literals.insert(literal_index ^ 1);
+            }
+          }
+        }
+
+        conflict_literals.erase(literal ^ 1);
+        conflict_literals.erase(literal);
+
+        if (!conflict_literals.empty()) {
+          uint32_t max_depth =
+              literals[*conflict_literals.begin()].assign_depth;
+          for (uint32_t literal : conflict_literals) {
+            uint32_t depth = literals[literal].assign_depth;
+            if (depth < max_depth && stack[depth].assigned_literal == literal) {
+              depth = max_depth;
+            }
+          }
+
+          // insert new clause
+          ClauseInfo new_clause;
+          new_clause.num_unassigned = 0;
+          new_clause.is_satisfied = false;
+          DBG("learning: ");
+          for (uint32_t literal : conflict_literals) {
+            // negate
+            literal = literal ^ 1;
+
+            DBG("%s%d", literal % 2 == 0 ? " " : " -", literal / 2 + 1);
+            literals[literal].clauses.push_back(clauses.size());
+            literals[literal].clause_index.push_back(
+                new_clause.literals.size());
+            literals[literal].cur_clauses += 1;
+            assert(literals[literal].is_assigned);
+            assert(m[(literal >> 1) + 1] == (literal & 1));
+            new_clause.literals.push_back(literal);
+          }
+          DBG("\n");
+          clauses.push_back(new_clause);
+
+          // backjump to max_depth
+          //while (stack.size() > max_depth) {
+            //unsetLiteral();
+          //}
+        }
+      }
+    }
+#endif
+
     while (backtrack && !stack.empty()) {
 
-#ifdef CDCL
-#endif
       // backtrack to last TYPE_DECIDE
-      while (!stack.empty() && stack.top().type == TYPE_IMPLIED) {
+      while (!stack.empty() && stack.back().type == TYPE_IMPLIED) {
         unsetLiteral();
       }
-      if (!stack.empty() && stack.top().type == TYPE_DECIDE) {
-        Change change = stack.top();
+      if (!stack.empty() && stack.back().type == TYPE_DECIDE) {
+        Change change = stack.back();
         unsetLiteral();
         if ((change.assigned_literal & 1) == 0) {
           // decide the opposite variable from last off
@@ -243,13 +312,13 @@ bool DPLL::setLiteral(uint32_t index, ChangeType type) {
       conflict = true;
     }
   }
-  stack.push(change);
+  stack.push_back(change);
   return conflict;
 }
 
 void DPLL::unsetLiteral() {
-  Change change = stack.top();
-  stack.pop();
+  Change change = stack.back();
+  stack.pop_back();
   int index = change.assigned_literal;
   DBG("unset%s%d\n", index % 2 == 0 ? " " : " -", index / 2 + 1);
   int neg_index = index ^ 1;

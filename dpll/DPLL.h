@@ -6,11 +6,13 @@
 #define DPLL_DPLL_H
 
 #include "common.h"
-#include <stack>
+#include <deque>
 #include <stdint.h>
 
 // Conflict driven clause learning
 #define CDCL
+
+enum ChangeType { TYPE_DECIDE, TYPE_IMPLIED };
 
 struct LiteralInfo {
   // immutable
@@ -32,8 +34,6 @@ struct ClauseInfo {
   uint32_t num_unassigned;
   bool is_satisfied;
 };
-
-enum ChangeType { TYPE_DECIDE, TYPE_IMPLIED };
 
 struct Change {
   uint32_t assigned_literal;
@@ -75,7 +75,7 @@ public:
 private:
   formula phi;
   model m;
-  std::stack<Change> stack;
+  std::deque<Change> stack;
   std::vector<LiteralInfo> literals;
   std::vector<ClauseInfo> clauses;
   std::vector<uint32_t> removed_clauses;
