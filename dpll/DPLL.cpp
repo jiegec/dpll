@@ -228,7 +228,7 @@ void DPLL::unsetLiteral(std::stack<Change> &stack) {
     clauses[clause_index].num_unassigned += 1;
   }
   // re-add removed clauses
-  for (int i = change.removed_clauses_begin; i < removed_clauses.size(); i++) {
+  for (uint32_t i = change.removed_clauses_begin; i < removed_clauses.size(); i++) {
     uint32_t clause_index = removed_clauses[i];
     clauses[clause_index].is_satisfied = false;
     num_sat -= 1;
