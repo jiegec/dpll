@@ -10,7 +10,7 @@
 #include <stdint.h>
 
 // Conflict driven clause learning
-// #define CDCL
+#define CDCL
 
 struct LiteralInfo {
   // immutable

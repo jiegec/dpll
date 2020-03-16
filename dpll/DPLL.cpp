@@ -112,6 +112,10 @@ bool DPLL::dpll() {
           for (uint32_t index : clause.literals) {
             if (!literals[index].is_assigned) {
               // found unit literal
+
+#ifdef CDCL
+              literals[index].unit_clause = i;
+#endif
               if (setLiteral(index, TYPE_IMPLIED)) {
                 // conflict
                 backtrack = true;
@@ -130,16 +134,17 @@ bool DPLL::dpll() {
       return true;
 
     // find pure literals
-    for (uint32_t i = 0; i < literals.size(); i++) {
-      LiteralInfo &literal = literals[i];
-      if (!literal.is_assigned && literal.cur_clauses == 0) {
-        uint32_t neg = i ^ 1;
-        // found pure literal
-        if (setLiteral(neg, TYPE_IMPLIED)) {
-          // conflict
-          unsetLiteral();
-          backtrack = true;
-          break;
+    if (!backtrack) {
+      for (uint32_t i = 0; i < literals.size(); i++) {
+        LiteralInfo &literal = literals[i];
+        if (!literal.is_assigned && literal.cur_clauses == 0) {
+          uint32_t neg = i ^ 1;
+          // found pure literal
+          if (setLiteral(neg, TYPE_IMPLIED)) {
+            // conflict
+            backtrack = true;
+            break;
+          }
         }
       }
     }
@@ -163,6 +168,9 @@ bool DPLL::dpll() {
     }
 
     while (backtrack && !stack.empty()) {
+
+#ifdef CDCL
+#endif
       // backtrack to last TYPE_DECIDE
       while (!stack.empty() && stack.top().type == TYPE_IMPLIED) {
         unsetLiteral();
@@ -204,6 +212,10 @@ bool DPLL::setLiteral(uint32_t index, ChangeType type) {
   literals[index].is_assigned = true;
   literals[neg_index].is_assigned = true;
   m[(index >> 1) + 1] = !(index & 1);
+
+#ifdef CDCL
+  literals[index].assign_depth = stack.size();
+#endif
 
   struct Change change;
   change.type = type;
