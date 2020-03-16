@@ -9,6 +9,9 @@
 #include <stack>
 #include <stdint.h>
 
+// Conflict  driven clause learning
+#define CDCL
+
 struct LiteralInfo {
   // immutable
   std::vector<uint32_t> clauses;
@@ -16,6 +19,9 @@ struct LiteralInfo {
   // mutable
   uint32_t cur_clauses;
   bool is_assigned;
+#ifdef CDCL
+  uint32_t unit_clause;
+#endif
 };
 
 struct ClauseInfo {
@@ -72,7 +78,7 @@ private:
   uint32_t num_sat;
   uint32_t num_unsat;
 
-  bool dpll();
+  bool dpll(uint32_t depth);
   bool setLiteral(uint32_t index, std::stack<Change> &stack);
   void unsetLiteral(std::stack<Change> &stack);
 };

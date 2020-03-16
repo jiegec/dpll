@@ -67,7 +67,7 @@ bool DPLL::check_sat() {
     }
   }
 
-  bool res = dpll();
+  bool res = dpll(0);
   if (res) {
     // fill unused variables
     for (uint32_t i = 1; i <= phi.num_variable; i++) {
@@ -80,7 +80,7 @@ bool DPLL::check_sat() {
   return res;
 }
 
-bool DPLL::dpll() {
+bool DPLL::dpll(uint32_t depth) {
   std::stack<Change> stack;
 
   // check if all clauses are satisfied
@@ -101,6 +101,9 @@ bool DPLL::dpll() {
         for (uint32_t index : clause.literals) {
           if (!literals[index].is_assigned) {
             // found unit literal
+#ifdef CDCL
+            literals[index].unit_clause = i;
+#endif
             if (setLiteral(index, stack)) {
               // conflict
               goto backtrack;
@@ -137,7 +140,7 @@ bool DPLL::dpll() {
     if (!literals[i].is_assigned) {
       // try to assign it
       setLiteral(i, stack);
-      if (dpll()) {
+      if (dpll(depth+1)) {
         // satisfied
         return true;
       }
@@ -145,7 +148,7 @@ bool DPLL::dpll() {
       // try to assign it's negative literal
       uint32_t neg = i ^ 1;
       setLiteral(neg, stack);
-      if (dpll()) {
+      if (dpll(depth+1)) {
         // satisfied
         return true;
       }
