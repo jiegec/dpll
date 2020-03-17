@@ -60,7 +60,7 @@ LiteralInfo 记录了这个 literal 出现在的 clause 和对应的位置、当
 
 通过这些结构体，可以实现 DPLL 算法中需要用到的各个操作。考虑到这只是个小作业，并且公开的测试样例中数据量不是很大，没有做很深入的性能优化，比如通过位运算缩短在 clause 中寻找 unit clause 的时间（见 \cite{ahmed_implementation_nodate} ）。
 
-程序通过了公开的所有测例，并且我也额外从 \href{https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html}{SATLIB - Benchmark Problems} 找到了一些 DIMACS 格式的测例，并加到了 dpll/tests 目录下，并额外手动够造了几个测例用于测试，一共 43 个测试样例，基于 Zhang Xinwei 和 Wang Yuanbiao 编写的脚本运行进行测试，在 Release 编译条件下都通过：
+程序通过了公开的所有测例，并且我也额外从 \href{https://www.cs.ubc.ca/~hoos/SATLIB/benchm.html}{SATLIB - Benchmark Problems} 找到了一些 DIMACS 格式的测例，并加到了 dpll/tests 目录下，并额外手动够造了几个测例用于测试，一共 46 个测试样例，基于 Zhang Xinwei 和 Wang Yuanbiao 编写的脚本运行进行测试，在 Release 编译条件下都通过：
 
 \begin{lstlisting}
 0 unsat for 1 vars pass, time: 0.008457 ms
@@ -124,6 +124,7 @@ total score: 43 / 43
 \begin{tabular}{|c|c|c|}
     \hline
     样例 & 无 CDCL 决策次数 & CDCL 决策次数 \\
+    \hline
     3 & 10 & 10 \\
     \hline
     4 & 441 & 441 \\
@@ -144,6 +145,32 @@ total score: 43 / 43
     \hline
 \end{tabular}
 \end{center}
+
+从表里可以看到，在一些测例里（如9 41），采用 CDCL 会大大减少决策的数量，但在另一些测例里（如 3 4 5 6 7 8 42）采用了 CDCL 并没有显著的效果，其中测例 3 5 6 8 都是因为没有出现冲突，而 7 和 42 则是因为学习出来的 conflict clause 出现了许多重复的部分，并且每次 backjump 都很近，所以并没有实质性的变化。可见如果 conflict clause 选取得不好，对性能没有提升。
+
+在比较大的数据中（test 36-40 都是 100 vars 的 SAT），运行时间如下（Release 版）：
+
+\begin{center}
+\begin{tabular}{|c|c|c|}
+    \hline
+    样例 & 无 CDCL 运行时间 & CDCL 运行时间 \\
+    \hline
+    36 & 223 ms & 674 ms \\
+    \hline
+    37 & 259 ms & 517 ms \\
+    \hline
+    38 & 15 ms & 24 ms \\
+    \hline
+    39 & 1636 ms & 22928 ms \\
+    \hline
+    40 & 146 ms & 360 ms \\
+    \hline
+\end{tabular}
+\end{center}
+
+是的，你没有看错，CDCL 整体上要更慢，说明在计算 implication graph 上花的时间较多，并且生成的 conflict clause 效果不好。所以 CDCL 必须配合其他一些策略使用，不然可能适得其反。
+
+最后是编写了 dpll/nqueens.py ，构造出 n 皇后问题的 SAT 约束，分别考虑所有的行和所有的列，使得每一行每一列只有一个皇后，然后考虑所有的对角线，使得每个对角线最多一个皇后。生成了 n=3,4,5 的数据，在 dpll/tests/test4{3-5}.dimacs 里。可以得到 n=3 无解，n=4 和 n=5 都得到了正确的解。
 
 \printbibliography
 
