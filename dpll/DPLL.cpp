@@ -199,12 +199,11 @@ bool DPLL::dpll() {
         conflict_literals.erase(literal);
 
         if (!conflict_literals.empty()) {
-          uint32_t max_depth =
-              literals[*conflict_literals.begin()].assign_depth;
+          uint32_t new_depth = 0;
           for (uint32_t literal : conflict_literals) {
             uint32_t depth = literals[literal].assign_depth;
-            if (depth < max_depth && stack[depth].assigned_literal == literal) {
-              depth = max_depth;
+            if (depth > new_depth && stack[depth].assigned_literal == literal) {
+              new_depth = depth;
             }
           }
 
@@ -229,10 +228,10 @@ bool DPLL::dpll() {
           DBG("\n");
           clauses.push_back(new_clause);
 
-          // backjump to max_depth
-          //while (stack.size() > max_depth) {
-            //unsetLiteral();
-          //}
+          // backjump to new_depth
+          while (stack.size() > new_depth) {
+            unsetLiteral();
+          }
         }
       }
     }
