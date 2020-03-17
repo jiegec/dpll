@@ -176,11 +176,13 @@ bool DPLL::dpll() {
       if (change.type == TYPE_IMPLIED) {
         // generate cut from stack top
         uint32_t literal = change.assigned_literal;
+        std::set<uint32_t> conflict_literals_pending;
+        std::set<uint32_t> conflict_literals_visited;
         std::set<uint32_t> conflict_literals;
 
         for (uint32_t literal_index :
              clauses[literals[literal].unit_clause].literals) {
-          conflict_literals.insert(literal_index ^ 1);
+          conflict_literals_pending.insert(literal_index ^ 1);
         }
 
         // negation
@@ -190,19 +192,43 @@ bool DPLL::dpll() {
               clauses[clause_index].num_unassigned == 0) {
             // unit clause for negation literal
             for (uint32_t literal_index : clauses[clause_index].literals) {
-              conflict_literals.insert(literal_index ^ 1);
+              conflict_literals_pending.insert(literal_index ^ 1);
             }
           }
         }
 
-        conflict_literals.erase(literal ^ 1);
-        conflict_literals.erase(literal);
+        conflict_literals_pending = conflict_literals_visited;
+        while (!conflict_literals_pending.empty()) {
+          uint32_t literal = *conflict_literals_pending.begin();
+          conflict_literals_pending.erase(literal);
+          uint32_t depth = literals[literal].assign_depth;
+          if (stack[depth].assigned_literal == literal) {
+            if (stack[depth].type == TYPE_IMPLIED) {
+              for (uint32_t literal_index :
+                   clauses[literals[literal].unit_clause].literals) {
+                literal_index ^= 1;
+                if (conflict_literals_visited.find(literal_index) ==
+                    conflict_literals_visited.end()) {
+                  conflict_literals_pending.insert(literal_index);
+                  if (stack[literals[literal_index].assign_depth].type ==
+                          TYPE_DECIDE &&
+                      stack[literals[literal_index].assign_depth]
+                              .assigned_literal == literal_index) {
+                    conflict_literals.insert(literal_index);
+                  }
+                }
+              }
+            } else {
+              conflict_literals.insert(literal);
+            }
+          }
+        }
 
         if (!conflict_literals.empty()) {
           uint32_t new_depth = 0;
           for (uint32_t literal : conflict_literals) {
             uint32_t depth = literals[literal].assign_depth;
-            if (depth > new_depth && stack[depth].assigned_literal == literal) {
+            if (depth < new_depth && stack[depth].assigned_literal == literal) {
               new_depth = depth;
             }
           }
@@ -231,6 +257,17 @@ bool DPLL::dpll() {
           // backjump to new_depth
           while (stack.size() > new_depth) {
             unsetLiteral();
+          }
+
+          for (uint32_t i = 0; i < literals.size(); i += 2) {
+            if (!literals[i].is_assigned) {
+              if (setLiteral(i, TYPE_DECIDE)) {
+                backtrack = true;
+              } else {
+                backtrack = false;
+              }
+              break;
+            }
           }
         }
       }
