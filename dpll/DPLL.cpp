@@ -6,7 +6,6 @@
 #include <algorithm>
 #include <set>
 
-// #define DEBUG
 #ifdef DEBUG
 #define DBG(...) printf(__VA_ARGS__)
 #else
@@ -97,6 +96,7 @@ bool DPLL::dpll() {
   // 1. empty
   // 2. top element of type TYPE_DECIDE
   do {
+  begin:
     if (num_sat == clauses.size())
       return true;
 
@@ -130,27 +130,6 @@ bool DPLL::dpll() {
       }
     } while (has_unit);
   next:
-
-    if (num_sat == clauses.size())
-      return true;
-
-    // find pure literals
-    if (!backtrack) {
-      for (uint32_t i = 0; i < literals.size(); i++) {
-        LiteralInfo &literal = literals[i];
-        if (!literal.is_assigned && literal.cur_clauses == 0) {
-          uint32_t neg = i ^ 1;
-          // found pure literal
-          /*
-          if (setLiteral(neg, TYPE_IMPLIED)) {
-            // conflict
-            backtrack = true;
-            break;
-          }
-          */
-        }
-      }
-    }
 
     if (num_sat == clauses.size())
       return true;
@@ -203,7 +182,8 @@ bool DPLL::dpll() {
           uint32_t literal = *conflict_literals_pending.begin();
           conflict_literals_pending.erase(literal);
           uint32_t depth = literals[literal].assign_depth;
-          if (stack[depth].assigned_literal == literal) {
+          if (stack[depth].assigned_literal == literal &&
+              literals[literal].is_assigned) {
             if (stack[depth].type == TYPE_IMPLIED) {
               for (uint32_t literal_index :
                    clauses[literals[literal].unit_clause].literals) {
@@ -250,8 +230,10 @@ bool DPLL::dpll() {
                 new_clause.literals.size());
             literals[literal].cur_clauses += 1;
             assert(literals[literal].is_assigned);
-            assert(stack[literals[literal ^ 1].assign_depth].assigned_literal == (literal ^ 1));
-            assert(stack[literals[literal ^ 1].assign_depth].type == TYPE_DECIDE);
+            assert(stack[literals[literal ^ 1].assign_depth].assigned_literal ==
+                   (literal ^ 1));
+            assert(stack[literals[literal ^ 1].assign_depth].type ==
+                   TYPE_DECIDE);
             assert(m[(literal >> 1) + 1] == (literal & 1));
             new_clause.literals.push_back(literal);
           }
@@ -263,16 +245,19 @@ bool DPLL::dpll() {
             unsetLiteral();
           }
 
-          for (uint32_t i = 0; i < literals.size(); i += 2) {
-            if (!literals[i].is_assigned) {
-              if (setLiteral(i, TYPE_DECIDE)) {
-                backtrack = true;
-              } else {
-                backtrack = false;
-              }
-              break;
-            }
-          }
+          /*
+                    for (uint32_t i = 0; i < literals.size(); i += 2) {
+                      if (!literals[i].is_assigned) {
+                        if (setLiteral(i, TYPE_DECIDE)) {
+                          backtrack = true;
+                        } else {
+                          backtrack = false;
+                        }
+                        break;
+                      }
+                    }
+                    */
+          goto begin;
         }
       }
     }
