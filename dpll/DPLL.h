@@ -10,8 +10,8 @@
 #include <stdint.h>
 
 // Conflict driven clause learning
-// #define CDCL
-// #define DEBUG
+#define CDCL
+#define DEBUG
 
 enum ChangeType { TYPE_DECIDE, TYPE_IMPLIED };
 

@@ -110,6 +110,19 @@ LiteralInfo 记录了这个 literal 出现在的 clause 和对应的位置、当
 total score: 43 / 43
 \end{lstlisting}
 
+\section{第二部分}
+
+第二部分在第一部分的基础上实现了 CDCL，在代码中通过 CDCL 宏来进行控制，方便两个版本的对比。在遇到 冲突的时候，CDCL 算法会按照 implication graph 遍历寻找一个 cut，我实现的是找到所有入度为 0 的结点，也就是所有 Decide 而不是 Propagate 的结点。这样做的好处是可能能够 backjump 到较早的 decision level，坏处是这样的点可能很多，导致插入的 clause 不是很有效。在 \cite{kroening_decision_2008} 书中讲到一种根据图的最小割求出 conflict clause 的方法，由于生成的 literal 数量会比较少，所以应该会比我的算法得到更好的结果。
+
+在找到这些结点后，把这些结点对应的 literal 的 negation 拼接起来成为一个新的 clause。由于此时这个 clause 所有 literal 都是 assigned 但没有一个是 true，所以它一定是 unsat 的，直接找到这些 literal 中 decision level 最大的一个，回退到 decide 它之前，此时就可以恢复正常的算法执行了，并且由于刚刚插入的这个 clause，会立即发生 unit propagate。
+
+这里实际上也有两种实现的可能，一个可能是选择回到 decision level 最大的那一个的前一步，另一个可能是回到 decision level 最小的一个然后继续。第一种实现的优势是会减少走重复路径的可能，第二种实现的优势是 backjump 更远，并且可能会提前出现新的 unit propagate 路径，但在 conflict clause 很大的时候效果也不好。我没有做特别深入的比较研究，选择了前一种。
+
+为了测试 CDCL ，我也构造了几个样例，然后比较了程序输出的 trace （通过 DEBUG 宏打开）：
+
+\begin{lstlisting}
+\end{lstlisting}
+
 \printbibliography
 
 \end{document}
