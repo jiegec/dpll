@@ -10,7 +10,7 @@
 #include <stdint.h>
 
 // Conflict driven clause learning
-#define CDCL
+// #define CDCL
 #define DEBUG
 
 enum ChangeType { TYPE_DECIDE, TYPE_IMPLIED };
@@ -83,6 +83,10 @@ private:
   uint32_t num_sat;
 #ifdef CDCL
   uint32_t backtrack_level;
+#endif
+#ifdef DEBUG
+  uint32_t num_set;
+  uint32_t num_unset;
 #endif
 
   bool dpll();

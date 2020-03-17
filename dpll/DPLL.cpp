@@ -71,7 +71,12 @@ bool DPLL::check_sat() {
 #ifdef CDCL
   backtrack_level = 0;
 #endif
+#ifdef DEBUG
+  num_set = 0;
+  num_unset = 0;
+#endif
   bool res = dpll();
+  DBG("set: %d, unset: %d\n", num_set, num_unset);
   if (res) {
     // fill unused variables
     for (uint32_t i = 1; i <= phi.num_variable; i++) {
@@ -310,6 +315,9 @@ bool DPLL::setLiteral(uint32_t index, ChangeType type) {
 #ifdef CDCL
   literals[index].assign_depth = stack.size();
 #endif
+#ifdef DEBUG
+  num_set++;
+#endif
 
   struct Change change;
   change.type = type;
@@ -352,6 +360,9 @@ void DPLL::unsetLiteral() {
 
 #ifdef CDCL
   literals[index].assign_depth = 0;
+#endif
+#ifdef DEBUG
+  num_unset++;
 #endif
 
   // re-add current literal
