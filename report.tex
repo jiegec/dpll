@@ -118,10 +118,32 @@ total score: 43 / 43
 
 这里实际上也有两种实现的可能，一个可能是选择回到 decision level 最大的那一个的前一步，另一个可能是回到 decision level 最小的一个然后继续。第一种实现的优势是会减少走重复路径的可能，第二种实现的优势是 backjump 更远，并且可能会提前出现新的 unit propagate 路径，但在 conflict clause 很大的时候效果也不好。我没有做特别深入的比较研究，选择了前一种。
 
-为了测试 CDCL ，我也构造了几个样例，然后比较了程序输出的 trace （通过 DEBUG 宏打开）：
+为了测试 CDCL ，我也构造了几个样例，然后比较了程序输出的统计数据，对比了决策的次数（通过 DEBUG 宏打开）：
 
-\begin{lstlisting}
-\end{lstlisting}
+\begin{center}
+\begin{tabular}{|c|c|c|}
+    \hline
+    样例 & 无 CDCL 决策次数 & CDCL 决策次数 \\
+    3 & 10 & 10 \\
+    \hline
+    4 & 441 & 441 \\
+    \hline
+    5 & 12 & 12 \\
+    \hline
+    6 & 20 & 20 \\
+    \hline
+    7 & 350 & 350 \\
+    \hline
+    8 & 70 & 70 \\
+    \hline
+    9 & 189649 & 1332 \\
+    \hline
+    41 & 166 & 57 \\
+    \hline
+    42 & 21 & 21 \\
+    \hline
+\end{tabular}
+\end{center}
 
 \printbibliography
 

@@ -11,7 +11,7 @@
 
 // Conflict driven clause learning
 // #define CDCL
-#define DEBUG
+// #define DEBUG
 
 enum ChangeType { TYPE_DECIDE, TYPE_IMPLIED };
 
