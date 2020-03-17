@@ -197,7 +197,8 @@ bool DPLL::dpll() {
           }
         }
 
-        conflict_literals_pending = conflict_literals_visited;
+        // find root literals in conflict clause
+        conflict_literals_visited = conflict_literals_pending;
         while (!conflict_literals_pending.empty()) {
           uint32_t literal = *conflict_literals_pending.begin();
           conflict_literals_pending.erase(literal);
@@ -210,6 +211,7 @@ bool DPLL::dpll() {
                 if (conflict_literals_visited.find(literal_index) ==
                     conflict_literals_visited.end()) {
                   conflict_literals_pending.insert(literal_index);
+                  conflict_literals_visited.insert(literal_index);
                   if (stack[literals[literal_index].assign_depth].type ==
                           TYPE_DECIDE &&
                       stack[literals[literal_index].assign_depth]
@@ -228,7 +230,7 @@ bool DPLL::dpll() {
           uint32_t new_depth = 0;
           for (uint32_t literal : conflict_literals) {
             uint32_t depth = literals[literal].assign_depth;
-            if (depth < new_depth && stack[depth].assigned_literal == literal) {
+            if (depth > new_depth && stack[depth].assigned_literal == literal) {
               new_depth = depth;
             }
           }
@@ -248,6 +250,8 @@ bool DPLL::dpll() {
                 new_clause.literals.size());
             literals[literal].cur_clauses += 1;
             assert(literals[literal].is_assigned);
+            assert(stack[literals[literal ^ 1].assign_depth].assigned_literal == (literal ^ 1));
+            assert(stack[literals[literal ^ 1].assign_depth].type == TYPE_DECIDE);
             assert(m[(literal >> 1) + 1] == (literal & 1));
             new_clause.literals.push_back(literal);
           }
@@ -360,6 +364,10 @@ void DPLL::unsetLiteral() {
   int neg_index = index ^ 1;
   literals[index].is_assigned = false;
   literals[neg_index].is_assigned = false;
+
+#ifdef CDCL
+  literals[index].assign_depth = 0;
+#endif
 
   // re-add current literal
   for (uint32_t clause_index : literals[index].clauses) {
